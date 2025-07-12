@@ -2,25 +2,23 @@
 
 import type React from "react"
 
-import { useEffect, useState } from "react"
-import { useRouter, useParams } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
+import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { BookOpen, ArrowLeft, Save } from "lucide-react"
-import Link from "next/link"
-import { getProducts, saveProducts, getCategories, type Product } from "@/lib/store"
+import { Textarea } from "@/components/ui/textarea"
+import { useEffect, useState } from "react"
+import { useRouter, useParams } from "next/navigation"
+import type { Product } from "@/types"
+import MultiImageUpload from "@/components/multi-image-upload"
 
-export default function EditProduct() {
+const EditProductPage = () => {
   const router = useRouter()
   const params = useParams()
-  const productId = Number(params.id)
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const productId = params.id as string
+
   const [product, setProduct] = useState<Product | null>(null)
-  const [categories, setCategories] = useState(getCategories())
+  const [products, setProducts] = useState<Product[]>([])
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -28,44 +26,48 @@ export default function EditProduct() {
     originalPrice: "",
     category: "",
     subcategory: "",
-    stock: "",
-    image: "",
+    // image: "", // قم بإزالة هذا السطر
     rating: "",
+    stock: "",
   })
+  const [images, setImages] = useState<string[]>([]) // أضف هذه الحالة الجديدة لإدارة الصور
 
   useEffect(() => {
-    const loggedIn = localStorage.getItem("adminLoggedIn")
-    if (!loggedIn) {
-      router.push("/admin")
-    } else {
-      setIsAuthenticated(true)
-      const products = getProducts()
-      const foundProduct = products.find((p) => p.id === productId)
-      if (foundProduct) {
-        setProduct(foundProduct)
-        setFormData({
-          name: foundProduct.name,
-          description: foundProduct.description,
-          price: foundProduct.price.toString(),
-          originalPrice: foundProduct.originalPrice?.toString() || "",
-          category: foundProduct.category,
-          subcategory: foundProduct.subcategory || "",
-          stock: foundProduct.stock.toString(),
-          image: foundProduct.image,
-          rating: foundProduct.rating.toString(),
-        })
-      } else {
-        alert("المنتج غير موجود")
-        router.push("/admin/products")
-      }
+    const storedProducts = localStorage.getItem("products")
+    if (storedProducts) {
+      setProducts(JSON.parse(storedProducts))
     }
-  }, [router, productId])
+  }, [])
+
+  useEffect(() => {
+    const foundProduct = products.find((p) => p.id === productId)
+    if (foundProduct) {
+      setProduct(foundProduct)
+      setImages(foundProduct.images || []) // قم بتعيين الصور الموجودة للمنتج
+      setFormData({
+        name: foundProduct.name,
+        description: foundProduct.description,
+        price: foundProduct.price.toString(),
+        originalPrice: foundProduct.originalPrice?.toString() || "",
+        category: foundProduct.category,
+        subcategory: foundProduct.subcategory || "",
+        stock: foundProduct.stock.toString(),
+        // image: foundProduct.image, // قم بإزالة هذا السطر
+        rating: foundProduct.rating.toString(),
+      })
+    }
+  }, [products, productId])
+
+  const handleChange = (key: string, value: string) => {
+    setFormData({
+      ...formData,
+      [key]: value,
+    })
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!product) return
 
-    const products = getProducts()
     const updatedProducts = products.map((p) =>
       p.id === productId
         ? {
@@ -77,197 +79,147 @@ export default function EditProduct() {
             category: formData.category,
             subcategory: formData.subcategory || undefined,
             stock: Number.parseInt(formData.stock),
-            image: formData.image,
+            // image: formData.image, // قم بإزالة هذا السطر
+            images: images, // أضف هذا السطر لحفظ مصفوفة الصور
             rating: Number.parseFloat(formData.rating),
             inStock: Number.parseInt(formData.stock) > 0,
           }
         : p,
     )
 
-    saveProducts(updatedProducts)
-    alert("تم تحديث المنتج بنجاح!")
+    localStorage.setItem("products", JSON.stringify(updatedProducts))
     router.push("/admin/products")
   }
 
-  const handleChange = (field: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
-  }
-
-  const selectedCategory = categories.find((c) => c.name === formData.category)
-  const subcategories = selectedCategory?.subcategories || []
-
-  if (!isAuthenticated || !product) {
-    return <div>جاري التحميل...</div>
+  if (!product) {
+    return <div>Loading...</div>
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-4">
-              <Link href="/admin/products">
-                <Button variant="ghost" size="sm">
-                  <ArrowLeft className="h-4 w-4 ml-2" />
-                  العودة
-                </Button>
-              </Link>
-              <BookOpen className="h-8 w-8 text-blue-600" />
-              <h1 className="text-2xl font-bold text-gray-900">تعديل المنتج</h1>
-            </div>
+    <div className="container mx-auto py-10">
+      <h1 className="text-2xl font-bold mb-5">تعديل المنتج</h1>
+      <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="name">اسم المنتج</Label>
+            <Input
+              type="text"
+              id="name"
+              value={formData.name}
+              onChange={(e) => handleChange("name", e.target.value)}
+              className="text-right"
+              placeholder="اسم المنتج"
+            />
           </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="price">السعر</Label>
+            <Input
+              type="number"
+              id="price"
+              value={formData.price}
+              onChange={(e) => handleChange("price", e.target.value)}
+              className="text-right"
+              placeholder="السعر"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="originalPrice">السعر الأصلي</Label>
+            <Input
+              type="number"
+              id="originalPrice"
+              value={formData.originalPrice}
+              onChange={(e) => handleChange("originalPrice", e.target.value)}
+              className="text-right"
+              placeholder="السعر الأصلي"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="category">الفئة</Label>
+            <Select onValueChange={(value) => handleChange("category", value)}>
+              <SelectTrigger className="w-full text-right">
+                <SelectValue placeholder="اختر الفئة" defaultValue={formData.category} />
+              </SelectTrigger>
+              <SelectContent className="text-right">
+                <SelectItem value="electronics">إلكترونيات</SelectItem>
+                <SelectItem value="clothing">ملابس</SelectItem>
+                <SelectItem value="books">كتب</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="subcategory">الفئة الفرعية</Label>
+            <Input
+              type="text"
+              id="subcategory"
+              value={formData.subcategory}
+              onChange={(e) => handleChange("subcategory", e.target.value)}
+              className="text-right"
+              placeholder="الفئة الفرعية"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="stock">المخزون</Label>
+            <Input
+              type="number"
+              id="stock"
+              value={formData.stock}
+              onChange={(e) => handleChange("stock", e.target.value)}
+              className="text-right"
+              placeholder="المخزون"
+            />
+          </div>
+
+          {/* قم بإزالة هذا القسم بالكامل:
+          <div className="space-y-2">
+            <Label htmlFor="image">رابط الصورة</Label>
+            <Input
+              id="image"
+              value={formData.image}
+              onChange={(e) => handleChange("image", e.target.value)}
+              className="text-right"
+              placeholder="https://example.com/image.jpg"
+            />
+          </div>
+          */}
+
+          {/* أضف هذا المكون بدلاً منه */}
+          <MultiImageUpload initialImages={images} onImagesChange={setImages} />
+
+          <div className="space-y-2">
+            <Label htmlFor="description">وصف المنتج</Label>
+            <Textarea
+              id="description"
+              value={formData.description}
+              onChange={(e) => handleChange("description", e.target.value)}
+              className="text-right"
+              placeholder="وصف المنتج"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="rating">التقييم</Label>
+            <Input
+              type="number"
+              id="rating"
+              value={formData.rating}
+              onChange={(e) => handleChange("rating", e.target.value)}
+              className="text-right"
+              placeholder="التقييم"
+            />
+          </div>
+
+          <Button type="submit" className="w-full">
+            حفظ التغييرات
+          </Button>
         </div>
-      </header>
-
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Card>
-          <CardHeader>
-            <CardTitle>تعديل بيانات المنتج</CardTitle>
-            <CardDescription>قم بتحديث تفاصيل المنتج</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="name">اسم المنتج *</Label>
-                  <Input
-                    id="name"
-                    value={formData.name}
-                    onChange={(e) => handleChange("name", e.target.value)}
-                    className="text-right"
-                    required
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="category">الفئة *</Label>
-                  <Select
-                    value={formData.category}
-                    onValueChange={(value) => {
-                      handleChange("category", value)
-                      handleChange("subcategory", "")
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="اختر الفئة" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories.map((category) => (
-                        <SelectItem key={category.id} value={category.name}>
-                          {category.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {subcategories.length > 0 && (
-                  <div className="space-y-2">
-                    <Label htmlFor="subcategory">الفئة الفرعية</Label>
-                    <Select value={formData.subcategory} onValueChange={(value) => handleChange("subcategory", value)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="اختر الفئة الفرعية" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {subcategories.map((subcategory) => (
-                          <SelectItem key={subcategory} value={subcategory}>
-                            {subcategory}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-
-                <div className="space-y-2">
-                  <Label htmlFor="price">السعر (ج.م) *</Label>
-                  <Input
-                    id="price"
-                    type="number"
-                    step="0.01"
-                    value={formData.price}
-                    onChange={(e) => handleChange("price", e.target.value)}
-                    className="text-right"
-                    required
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="originalPrice">السعر الأصلي (ج.م)</Label>
-                  <Input
-                    id="originalPrice"
-                    type="number"
-                    step="0.01"
-                    value={formData.originalPrice}
-                    onChange={(e) => handleChange("originalPrice", e.target.value)}
-                    className="text-right"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="stock">الكمية المتوفرة *</Label>
-                  <Input
-                    id="stock"
-                    type="number"
-                    value={formData.stock}
-                    onChange={(e) => handleChange("stock", e.target.value)}
-                    className="text-right"
-                    required
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="rating">التقييم</Label>
-                  <Input
-                    id="rating"
-                    type="number"
-                    step="0.1"
-                    min="1"
-                    max="5"
-                    value={formData.rating}
-                    onChange={(e) => handleChange("rating", e.target.value)}
-                    className="text-right"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="image">رابط الصورة</Label>
-                <Input
-                  id="image"
-                  value={formData.image}
-                  onChange={(e) => handleChange("image", e.target.value)}
-                  className="text-right"
-                  placeholder="https://example.com/image.jpg"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="description">وصف المنتج *</Label>
-                <Textarea
-                  id="description"
-                  value={formData.description}
-                  onChange={(e) => handleChange("description", e.target.value)}
-                  className="text-right"
-                  rows={4}
-                  required
-                />
-              </div>
-
-              <div className="flex justify-end space-x-4">
-                <Link href="/admin/products">
-                  <Button variant="outline">إلغاء</Button>
-                </Link>
-                <Button type="submit">
-                  <Save className="h-4 w-4 ml-2" />
-                  حفظ التغييرات
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      </div>
+      </form>
     </div>
   )
 }
+
+export default EditProductPage
